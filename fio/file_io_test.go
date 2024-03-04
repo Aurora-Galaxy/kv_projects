@@ -88,5 +88,3 @@ func TestFileIO_Sync(t *testing.T) {
 	err = fio.Close()
 	assert.Nil(t, err)
 }
-
-

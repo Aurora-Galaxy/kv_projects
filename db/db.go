@@ -1,10 +1,10 @@
 package db
 
 import (
-	"bitcask_go/conf"
-	"bitcask_go/data"
-	"bitcask_go/errs"
-	"bitcask_go/index"
+	"kv_projects/conf"
+	"kv_projects/data"
+	"kv_projects/errs"
+	"kv_projects/index"
 	"sync"
 )
 

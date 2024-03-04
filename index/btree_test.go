@@ -1,21 +1,21 @@
 package index
 
 import (
-	"bitcask_go/data"
 	"github.com/stretchr/testify/assert"
+	"kv_projects/data"
 	"testing"
 )
 
 func TestBTree_Put(t *testing.T) {
 	bt := NewBtree()
 
-	res1 := bt.Put(nil, &data.LogRecord{
+	res1 := bt.Put(nil, &data.LogRecordPos{
 		Fid:    1,
 		Offset: 100,
 	})
 	assert.True(t, res1)
 
-	res2 := bt.Put([]byte("a"), &data.LogRecord{
+	res2 := bt.Put([]byte("a"), &data.LogRecordPos{
 		Fid:    1,
 		Offset: 1000,
 	})
@@ -26,7 +26,7 @@ func TestBTree_Put(t *testing.T) {
 func TestBTree_Get(t *testing.T) {
 	bt := NewBtree()
 
-	res1 := bt.Put(nil, &data.LogRecord{
+	res1 := bt.Put(nil, &data.LogRecordPos{
 		Fid:    1,
 		Offset: 100,
 	})
@@ -36,12 +36,12 @@ func TestBTree_Get(t *testing.T) {
 	assert.Equal(t, int64(100), pos1.Offset)
 
 	//测试key对应值的修改
-	res2 := bt.Put([]byte("a"), &data.LogRecord{
+	res2 := bt.Put([]byte("a"), &data.LogRecordPos{
 		Fid:    1,
 		Offset: 100,
 	})
 	assert.True(t, res2)
-	res3 := bt.Put([]byte("a"), &data.LogRecord{
+	res3 := bt.Put([]byte("a"), &data.LogRecordPos{
 		Fid:    2,
 		Offset: 200,
 	})
@@ -55,7 +55,7 @@ func TestBTree_Get(t *testing.T) {
 func TestBTree_Delete(t *testing.T) {
 	bt := NewBtree()
 
-	res1 := bt.Put(nil, &data.LogRecord{
+	res1 := bt.Put(nil, &data.LogRecordPos{
 		Fid:    1,
 		Offset: 100,
 	})
@@ -63,7 +63,7 @@ func TestBTree_Delete(t *testing.T) {
 	delRes1 := bt.Delete(nil)
 	assert.True(t, delRes1)
 
-	res2 := bt.Put([]byte("a"), &data.LogRecord{
+	res2 := bt.Put([]byte("a"), &data.LogRecordPos{
 		Fid:    1,
 		Offset: 1000,
 	})
