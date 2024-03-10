@@ -41,3 +41,14 @@ type IOManager interface {
 	 */
 	Close() error
 }
+
+/**
+ * NewIOManager
+ * @Description: 初始化IOManager，后续添加标准可以做一个判断初始化不同的io类型
+ * @param fileName
+ * @return IOManager
+ * @return error
+ */
+func NewIOManager(fileName string) (IOManager, error) {
+	return NewFileIOManager(fileName)
+}

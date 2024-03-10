@@ -2,6 +2,9 @@ package data
 
 import "kv_projects/fio"
 
+// 约定数据存储在以.data为后缀的文件内
+const DataFileNameSuffix = ".data"
+
 type DataFile struct {
 	FileId      uint32        // 当前文件的id
 	WriteOffset int64         // 文件写到的位置
@@ -21,4 +24,9 @@ func (df *DataFile) Sync() error {
 // 文件写入操作
 func (df *DataFile) Write(buf []byte) error {
 	return nil
+}
+
+// 文件读取操作
+func (df *DataFile) ReadLogRecord(offset int64) (*LogRecord, int64, error) {
+	return nil, 0, nil
 }

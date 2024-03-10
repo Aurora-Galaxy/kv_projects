@@ -1,5 +1,7 @@
 package conf
 
+import "kv_projects/index"
+
 //数据库启动时接收用户自定义的配置项
 
 type Options struct {
@@ -11,4 +13,7 @@ type Options struct {
 
 	// 用于每次写入数据后判断用户是否需要可以进行数据持久化
 	SyncWrite bool
+
+	// 索引类型
+	IndexType index.IndexType
 }

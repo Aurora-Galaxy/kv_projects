@@ -18,6 +18,36 @@ type Indexer interface {
 	Delete(key []byte) bool
 }
 
+type IndexType = uint8
+
+// 定义索引类型的枚举，可以提供多种索引类型
+const (
+	// btree 索引
+	Btree IndexType = iota + 1
+
+	// ART 自适应基数数索引
+	ART
+)
+
+/**
+ * NewIndexer
+ * @Description: 根据不同的类型初始化索引
+ * @param tp
+ * @return Indexer
+ */
+func NewIndexer(tp IndexType) Indexer {
+	switch tp {
+	case Btree:
+		NewBtree()
+	case ART:
+		// todo
+		return nil
+	default:
+		panic("unsupported index type")
+	}
+	return nil
+}
+
 type ItemSelf struct {
 	key []byte
 	pos *data.LogRecordPos
