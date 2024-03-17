@@ -71,3 +71,66 @@ func TestBTree_Delete(t *testing.T) {
 	delRes2 := bt.Delete([]byte("a"))
 	assert.True(t, delRes2)
 }
+
+func TestBTree_Iterator(t *testing.T) {
+	bt1 := NewBtree()
+	// 1. btree 为空的情况
+	iter1 := bt1.Iterator(false)
+	assert.Equal(t, false, iter1.Valid())
+
+	//2. 用数据的情况
+	bt1.Put([]byte("test"), &data.LogRecordPos{
+		Fid:    1,
+		Offset: 0,
+	})
+	iter2 := bt1.Iterator(false)
+	assert.Equal(t, true, iter2.Valid())
+	//t.Log(iter2.Key())
+	//t.Log(iter2.Value())
+	assert.NotNil(t, iter2.Key())
+	assert.NotNil(t, iter2.Value())
+	iter2.Next()
+	assert.False(t, iter2.Valid())
+
+	// 多条数据
+	bt1.Put([]byte("aabb"), &data.LogRecordPos{
+		Fid:    1,
+		Offset: 0,
+	})
+	bt1.Put([]byte("bbcc"), &data.LogRecordPos{
+		Fid:    2,
+		Offset: 0,
+	})
+	bt1.Put([]byte("ccdd"), &data.LogRecordPos{
+		Fid:    3,
+		Offset: 0,
+	})
+	bt1.Put([]byte("ddee"), &data.LogRecordPos{
+		Fid:    4,
+		Offset: 0,
+	})
+	iter3 := bt1.Iterator(false)
+	for iter3.Rewind(); iter3.Valid(); iter3.Next() {
+		t.Log(string(iter3.Key()))
+		assert.NotNil(t, iter3.Key())
+		assert.NotNil(t, iter3.Value())
+	}
+	// 打印 key 大于等于 cc
+	for iter3.Seek([]byte("cc")); iter3.Valid(); iter3.Next() {
+		t.Log(string(iter3.Key()))
+		assert.NotNil(t, iter3.Key())
+	}
+
+	iter4 := bt1.Iterator(true)
+	for iter4.Rewind(); iter4.Valid(); iter4.Next() {
+		//assert.NotNil(t, iter4.Key())
+		//assert.NotNil(t, iter4.Value())
+		t.Log(string(iter4.Key()))
+	}
+	// 打印 key 小于等于 cc 的
+	for iter4.Seek([]byte("cc")); iter4.Valid(); iter4.Next() {
+		t.Log(string(iter4.Key()))
+		assert.NotNil(t, iter4.Key())
+	}
+
+}
