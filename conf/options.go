@@ -1,6 +1,9 @@
 package conf
 
-import "kv_projects/index"
+import (
+	"kv_projects/index"
+	"os"
+)
 
 //数据库启动时接收用户自定义的配置项
 
@@ -16,4 +19,25 @@ type Options struct {
 
 	// 索引类型
 	IndexType index.IndexType
+}
+
+// 用户初始化迭代器时，传入的配置
+type IteratorOptions struct {
+	// 遍历前缀为指定值的 key，默认为空
+	Prefix []byte
+	// 是否反向遍历，默认 false 正向遍历
+	Reverse bool
+}
+
+var DefaultOptions = Options{
+	DirPath:      os.TempDir(),
+	DataFileSize: 256 * 1024 * 1024, // 256MB
+	SyncWrite:    false,
+	IndexType:    index.Btree,
+}
+
+// 用户迭代器默认配置
+var DefaultIteratorOptions = IteratorOptions{
+	Prefix:  nil,
+	Reverse: false,
 }

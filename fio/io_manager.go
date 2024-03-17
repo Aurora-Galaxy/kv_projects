@@ -40,6 +40,14 @@ type IOManager interface {
 	 * @return errs
 	 */
 	Close() error
+
+	/**
+	 * Size
+	 * @Description: 获取当前文件的文件大小
+	 * @return int64
+	 * @return error
+	 */
+	Size() (int64, error)
 }
 
 /**

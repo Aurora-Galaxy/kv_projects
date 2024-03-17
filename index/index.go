@@ -16,6 +16,12 @@ type Indexer interface {
 
 	// Delete 删除key对应的数据位置信息
 	Delete(key []byte) bool
+
+	// 获取 key 的数量
+	Size() int
+
+	// 返回迭代器
+	Iterator(reverse bool) Iterator
 }
 
 type IndexType = uint8
@@ -38,12 +44,12 @@ const (
 func NewIndexer(tp IndexType) Indexer {
 	switch tp {
 	case Btree:
-		NewBtree()
+		return NewBtree()
 	case ART:
 		// todo
 		return nil
 	default:
-		panic("unsupported index type")
+		panic("unsupported Index type")
 	}
 	return nil
 }
@@ -57,4 +63,53 @@ type ItemSelf struct {
 func (ai *ItemSelf) Less(bi btree.Item) bool {
 	//ai.key在bi.key之前返回 true
 	return bytes.Compare(ai.key, bi.(*ItemSelf).key) == -1
+}
+
+// 索引器接口
+type Iterator interface {
+	/**
+	 * Rewind
+	 * @Description:重新回到迭代器的起点，即第一个数据
+	 */
+	Rewind()
+
+	/**
+	 * Seek
+	 * @Description:根据传入的 key 查找到第一个大于（或小于）等于的目标 key，根据从这个 key 开始遍历
+	 * @param key
+	 */
+	Seek(key []byte)
+
+	/**
+	 * Next
+	 * @Description:跳转到下一个 key
+	 */
+	Next()
+
+	/**
+	 * Valid
+	 * @Description:是否有效，即是否已经遍历完了所有的 key，用于退出遍历
+	 * @return bool
+	 */
+	Valid() bool
+
+	/**
+	 * Key
+	 * @Description:当前遍历位置的 Key 数据
+	 * @return []byte
+	 */
+	Key() []byte
+
+	/**
+	 * Value
+	 * @Description:当前遍历位置的 Value 数据
+	 * @return *data.LogRecordPos
+	 */
+	Value() *data.LogRecordPos
+
+	/**
+	 * Close
+	 * @Description:关闭迭代器，释放相应资源
+	 */
+	Close()
 }
