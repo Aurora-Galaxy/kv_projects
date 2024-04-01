@@ -13,6 +13,7 @@ const (
 	LogRecordNormal LogRecordType = iota
 	// 删除状态
 	LogRecordDeleted
+	LogRecordTxnFinished
 )
 
 // 采用可变长编码
@@ -40,6 +41,12 @@ type LogRecordHeader struct {
 	recordType LogRecordType //墓碑值，标记该记录是否被删除
 	keySize    uint32        // key 的长度
 	valueSize  uint32        // value的长度
+}
+
+// 暂时存放事务数据
+type TransactionLogRecord struct {
+	Pos    *LogRecordPos
+	Record *LogRecord
 }
 
 /**
@@ -115,6 +122,38 @@ func DecoderLogRecord(buf []byte) (*LogRecordHeader, int64) {
 	return header, int64(Index)
 }
 
+/**
+ * EncoderLogRecordPos
+ * @Description: 对 logRecordPos 进行编码
+ * @param pos
+ * @return []byte，编码后的结果
+ */
+func EncoderLogRecordPos(pos *LogRecordPos) []byte {
+	buf := make([]byte, binary.MaxVarintLen32+binary.MaxVarintLen64)
+	index := 0
+	index += binary.PutVarint(buf[index:], int64(pos.Fid))
+	index += binary.PutVarint(buf[index:], pos.Offset)
+	// 返回编码结果
+	return buf[:index]
+}
+
+func DecoderLogRecordPos(buf []byte) *LogRecordPos {
+	index := 0
+	fId, size := binary.Varint(buf[index:])
+	offset, _ := binary.Varint(buf[index+size:])
+	return &LogRecordPos{
+		Fid:    uint32(fId),
+		Offset: offset,
+	}
+}
+
+/**
+ * GetLogRecordCRC
+ * @Description: 获取 LogRecord 中的crc校验值
+ * @param lr
+ * @param headerNotCRC
+ * @return uint32
+ */
 func GetLogRecordCRC(lr *LogRecord, headerNotCRC []byte) uint32 {
 	if lr == nil {
 		return 0

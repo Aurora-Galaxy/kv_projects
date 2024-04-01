@@ -10,7 +10,11 @@ import (
 )
 
 // 约定数据存储在以.data为后缀的文件内
-const DataFileNameSuffix = ".data"
+const (
+	DataFileNameSuffix    = ".data"
+	HintFileName          = "hint-index"
+	MergeFinishedFileName = "merge-finished"
+)
 
 type DataFile struct {
 	FileId      uint32        // 当前文件的id
@@ -20,7 +24,29 @@ type DataFile struct {
 
 // 打开新的数据文件
 func OpenDataFile(dirPath string, fileId uint32) (*DataFile, error) {
-	fileName := filepath.Join(dirPath, fmt.Sprintf("%09d", fileId)+DataFileNameSuffix)
+	fileName := GetDataFileName(dirPath, fileId)
+	return newDataFile(fileName, fileId)
+}
+
+func GetDataFileName(dirPath string, fileId uint32) string {
+	return filepath.Join(dirPath, fmt.Sprintf("%09d", fileId)+DataFileNameSuffix)
+}
+
+// 打开 hint 文件
+func OpenHintFile(dirPath string) (*DataFile, error) {
+	fileName := filepath.Join(dirPath, HintFileName)
+	return newDataFile(fileName, 0)
+
+}
+
+// 打开标识 merge 完成文件
+func OpenMergeFinishedFile(dirPath string) (*DataFile, error) {
+	fileName := filepath.Join(dirPath, MergeFinishedFileName)
+	return newDataFile(fileName, 0)
+}
+
+func newDataFile(fileName string, fileId uint32) (*DataFile, error) {
+	// 初始化 IOManager 管理器接口
 	ioManager, err := fio.NewIOManager(fileName)
 	if err != nil {
 		return nil, err
@@ -107,6 +133,26 @@ func (df *DataFile) ReadLogRecord(offset int64) (*LogRecord, int64, error) {
 		return nil, 0, errs.ErrInvalidCRC
 	}
 	return logRecord, logrecordSize, nil
+}
+
+/**
+ * WriteHintFile
+ * @Description: 将 key 和其对应的文件索引信息写入 Hint 索引文件
+ * @receiver df
+ * @param key
+ * @param pos
+ * @return error
+ */
+func (df *DataFile) WriteHintFile(key []byte, pos *LogRecordPos) error {
+	record := &LogRecord{
+		Key:   key,
+		Value: EncoderLogRecordPos(pos),
+	}
+	logRecord, _ := EncoderLogRecord(record)
+	if err := df.Write(logRecord); err != nil {
+		return err
+	}
+	return nil
 }
 
 // 读取 n 个byte

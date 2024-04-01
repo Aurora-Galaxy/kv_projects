@@ -10,4 +10,6 @@ var (
 	ErrDataAlreadyDeleted     = errors.New("data already deleted")
 	ErrDataDirectoryCorrupted = errors.New("the database directory maybe corrupted")
 	ErrInvalidCRC             = errors.New("invalid crc value, logRecord maybe corrupted")
+	ErrExceedMaxBatchNum      = errors.New("exceed the max batch num")
+	ErrMergeIsProgress        = errors.New("merge is in progress, try again later")
 )
