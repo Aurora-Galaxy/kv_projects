@@ -134,8 +134,8 @@ func newBTreeIterator(tree *btree.BTree, reverse bool) *BTreeIterator {
  * Rewind
  * @Description:重新回到迭代器的起点，即第一个数据
  */
-func (bti *BTreeIterator) Rewind() {
-	bti.currIndex = 0
+func (ai *BTreeIterator) Rewind() {
+	ai.currIndex = 0
 }
 
 /**
@@ -143,17 +143,17 @@ func (bti *BTreeIterator) Rewind() {
  * @Description:根据传入的 key 查找到第一个大于（或小于）等于的目标 key，根据从这个 key 开始遍历
  * @param key
  */
-func (bti *BTreeIterator) Seek(key []byte) {
+func (ai *BTreeIterator) Seek(key []byte) {
 	// btree 本身有序，取出后存放在数组也是有序的
-	if bti.reverse {
+	if ai.reverse {
 		// 从大到小排列，找到小于等于key
-		bti.currIndex = sort.Search(len(bti.values), func(i int) bool {
-			return bytes.Compare(bti.values[i].key, key) <= 0
+		ai.currIndex = sort.Search(len(ai.values), func(i int) bool {
+			return bytes.Compare(ai.values[i].key, key) <= 0
 		})
 	} else {
 		// 从小到大排列，找到大于等于key
-		bti.currIndex = sort.Search(len(bti.values), func(i int) bool {
-			return bytes.Compare(bti.values[i].key, key) >= 0
+		ai.currIndex = sort.Search(len(ai.values), func(i int) bool {
+			return bytes.Compare(ai.values[i].key, key) >= 0
 		})
 	}
 }
@@ -162,8 +162,8 @@ func (bti *BTreeIterator) Seek(key []byte) {
  * Next
  * @Description:跳转到下一个 key
  */
-func (bti *BTreeIterator) Next() {
-	bti.currIndex += 1
+func (ai *BTreeIterator) Next() {
+	ai.currIndex += 1
 }
 
 /**
@@ -171,8 +171,8 @@ func (bti *BTreeIterator) Next() {
  * @Description:是否有效，即是否已经遍历完了所有的 key，用于退出遍历
  * @return bool
  */
-func (bti *BTreeIterator) Valid() bool {
-	return bti.currIndex < len(bti.values)
+func (ai *BTreeIterator) Valid() bool {
+	return ai.currIndex < len(ai.values)
 }
 
 /**
@@ -180,8 +180,8 @@ func (bti *BTreeIterator) Valid() bool {
  * @Description:当前遍历位置的 Key 数据
  * @return []byte
  */
-func (bti *BTreeIterator) Key() []byte {
-	return bti.values[bti.currIndex].key
+func (ai *BTreeIterator) Key() []byte {
+	return ai.values[ai.currIndex].key
 }
 
 /**
@@ -189,15 +189,15 @@ func (bti *BTreeIterator) Key() []byte {
  * @Description:当前遍历位置的 Value 数据
  * @return *data.LogRecordPos
  */
-func (bti *BTreeIterator) Value() *data.LogRecordPos {
-	return bti.values[bti.currIndex].pos
+func (ai *BTreeIterator) Value() *data.LogRecordPos {
+	return ai.values[ai.currIndex].pos
 }
 
 /**
  * Close
  * @Description:关闭迭代器，释放相应资源
  */
-func (bti *BTreeIterator) Close() {
-	// 清楚临时数组
-	bti.values = nil
+func (ai *BTreeIterator) Close() {
+	// 清除临时数组
+	ai.values = nil
 }
