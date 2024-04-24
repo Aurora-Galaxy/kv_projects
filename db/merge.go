@@ -191,6 +191,10 @@ func (db *DB) loadMergeFiles() error {
 		if entry.Name() == data.MergeFinishedFileName {
 			mergeFinished = true
 		}
+		// 将保存事务序列号的文件跳过
+		if entry.Name() == data.SeqNoFileName {
+			continue
+		}
 		mergeFileNames = append(mergeFileNames, entry.Name())
 	}
 
@@ -204,6 +208,7 @@ func (db *DB) loadMergeFiles() error {
 	if err != nil {
 		return err
 	}
+
 	//在原本目录下删除已经执行完 merge 的文件
 	var fileId uint32 = 0
 	for ; fileId < noMergeFileId; fileId++ {

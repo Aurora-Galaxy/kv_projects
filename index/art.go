@@ -58,6 +58,10 @@ func (art *AdaptiveRadixTree) Size() int {
 	return size
 }
 
+func (art *AdaptiveRadixTree) Close() error {
+	return nil
+}
+
 type ARTIterator struct {
 	currIndex int         //当前遍历位置的下标
 	reverse   bool        // 是否是反向遍历

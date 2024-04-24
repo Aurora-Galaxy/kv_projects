@@ -14,6 +14,9 @@ type Options struct {
 	// 活跃文件可以写入数据的大小
 	DataFileSize int64
 
+	// 设置文件写入阈值，达到该阈值后，进行文件持久化
+	BytesPerSync uint64
+
 	// 用于每次写入数据后判断用户是否需要可以进行数据持久化
 	SyncWrite bool
 
@@ -39,6 +42,7 @@ type WriteBatchOptions struct {
 var DefaultOptions = Options{
 	DirPath:      os.TempDir(),
 	DataFileSize: 256 * 1024 * 1024, // 256MB
+	BytesPerSync: 0,
 	SyncWrite:    false,
 	IndexType:    index.Btree,
 }

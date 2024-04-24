@@ -97,6 +97,10 @@ func (bt *BTree) Size() int {
 	return bt.tree.Len()
 }
 
+func (bt *BTree) Close() error {
+	return nil
+}
+
 type BTreeIterator struct {
 	currIndex int         //当前遍历位置的下标
 	reverse   bool        // 是否是反向遍历

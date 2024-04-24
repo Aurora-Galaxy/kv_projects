@@ -2,6 +2,8 @@ package db
 
 import (
 	"errors"
+	"fmt"
+	"github.com/gofrs/flock"
 	"io"
 	"kv_projects/conf"
 	"kv_projects/data"
@@ -15,6 +17,11 @@ import (
 	"sync"
 )
 
+const (
+	SeqNoKey     = "seq-no"
+	FileLockName = "flock"
+)
+
 // 定义一个bitcask引擎实例
 type DB struct {
 	Options    conf.Options              //接收用户的自定义配置
@@ -25,6 +32,13 @@ type DB struct {
 	Index      index.Indexer             // 内存索引
 	SeqNo      uint64                    // 事务序列号，全局递增
 	IsMerging  bool                      //标识merge操作是否正在进行
+
+	// 主要用于索引是B+树的情况
+	SeqNoFileExists bool //标识存放全局事务序列号的文件是否存在
+	IsInitial       bool //标识是否是初始化数据库实例
+
+	FileLock   *flock.Flock //文件锁保证多个进程之间的互斥
+	BytesWrite uint64       //标识当前所写的字节数
 }
 
 func Open(options conf.Options) (*DB, error) {
@@ -32,12 +46,36 @@ func Open(options conf.Options) (*DB, error) {
 	if err := checkOptions(options); err != nil {
 		return nil, err
 	}
+
+	var isInitial bool
+
 	// 对用户传入的路径进行判断，如果不存在则创建
 	if _, err := os.Stat(options.DirPath); os.IsNotExist(err) {
+		isInitial = true
 		// os.ModePerm 创建文件夹权限 0777
 		if err := os.MkdirAll(options.DirPath, os.ModePerm); err != nil {
 			return nil, err
 		}
+	}
+
+	//判断当前文件目录是否正在使用
+	fileLock := flock.New(filepath.Join(options.DirPath, FileLockName))
+	// 尝试获取文件锁，如果 db 实例在该文件夹已经启动，则 fold 为false，否则为true，保证一个文件夹只能启动一个db
+	hold, err := fileLock.TryLock()
+	if err != nil {
+		return nil, err
+	}
+	if !hold {
+		return nil, errs.ErrDatabaseIsUsing
+	}
+
+	// 考虑目录存在，但是为空的情况，此时在该目录上初始化db，也需要将IsInitial设为 true
+	entries, err := os.ReadDir(options.DirPath)
+	if err != nil {
+		return nil, err
+	}
+	if len(entries) == 0 {
+		isInitial = true
 	}
 
 	// 定义一个 db 实例
@@ -45,7 +83,9 @@ func Open(options conf.Options) (*DB, error) {
 		Options:    options,
 		Mutex:      new(sync.RWMutex),
 		OlderFiles: make(map[uint32]*data.DataFile),
-		Index:      index.NewIndexer(options.IndexType),
+		Index:      index.NewIndexer(options.IndexType, options.DirPath, options.SyncWrite),
+		IsInitial:  isInitial,
+		FileLock:   fileLock,
 	}
 
 	// 加载 merge 数据目录,将 merge 后的新文件替换原来的旧文件
@@ -53,19 +93,37 @@ func Open(options conf.Options) (*DB, error) {
 		return nil, err
 	}
 
-	// 加载用户配置文件
+	// 加载用户数据文件
 	if err := db.loadDataFile(); err != nil {
 		return nil, err
 	}
 
-	// 从 hint 文件加载索引
-	if err := db.loadIndexFromHintFile(); err != nil {
-		return nil, err
-	}
+	if options.IndexType != index.BPTree {
+		// 如果发生过 merge 必定会存在hint索引文件，直接从中加载数据即可
+		// 从 hint 文件加载索引
+		if err := db.loadIndexFromHintFile(); err != nil {
+			return nil, err
+		}
 
-	//构建内存索引
-	if err := db.loadIndexFromDataFile(); err != nil {
-		return nil, err
+		// 没有发生 merge 的数据文件，需要遍历文件加载索引
+		//构建内存索引
+		if err := db.loadIndexFromDataFile(); err != nil {
+			return nil, err
+		}
+	}
+	// B+ 树的索引保存在磁盘上，不需要加载到内存
+	if options.IndexType == index.BPTree {
+		if err := db.loadSeqNoFile(); err != nil {
+			return nil, err
+		}
+		// 获取当前活跃文件大小，更新活跃文件offset
+		if db.ActiveFile != nil {
+			size, err := db.ActiveFile.IOManager.Size()
+			if err != nil {
+				return nil, err
+			}
+			db.ActiveFile.WriteOffset = size
+		}
 	}
 	return db, nil
 }
@@ -83,6 +141,7 @@ func (db *DB) NewUserIterator(options conf.IteratorOptions) *Iterator {
 // 获取所用的key
 func (db *DB) ListKeys() [][]byte {
 	iter := db.Index.Iterator(false)
+	defer iter.Close()
 	keys := make([][]byte, db.Index.Size())
 	var idx int
 	for iter.Rewind(); iter.Valid(); iter.Next() {
@@ -97,6 +156,7 @@ func (db *DB) Fold(fn func(key, value []byte) bool) error {
 	db.Mutex.RLock()
 	defer db.Mutex.RUnlock()
 	iter := db.Index.Iterator(false)
+	defer iter.Close()
 	for iter.Rewind(); iter.Valid(); iter.Next() {
 		// 读取数据
 		value, err := db.GetValueByPosition(iter.Value())
@@ -206,12 +266,42 @@ func (db *DB) Delete(key []byte) error {
  * @return error
  */
 func (db *DB) Close() error {
+	defer func() {
+		// 将文件锁释放
+		if err := db.FileLock.Unlock(); err != nil {
+			panic(fmt.Sprintf("failed to unlock the directory, %v", err))
+		}
+	}()
 	if db.ActiveFile == nil {
 		return nil
 	}
 	db.Mutex.Lock()
 	defer db.Mutex.Unlock()
+	if err := db.Index.Close(); err != nil {
+		return err
+	}
+	// 保存当前的事务序列号， B+树模式下，获取不到最新的事务序列号
+	seqNoFile, err := data.OpenSeqNoFile(db.Options.DirPath)
+	if err != nil {
+		return err
+	}
+	// 将最新的事务序列号保存在特定文件中，取出时不用遍历所有文件
+	seqNoLogRecord := &data.LogRecord{
+		Key:   []byte(SeqNoKey),
+		Value: []byte(strconv.FormatUint(db.SeqNo, 10)),
+	}
 
+	encoderLogRecord, _ := data.EncoderLogRecord(seqNoLogRecord)
+
+	if err := seqNoFile.Write(encoderLogRecord); err != nil {
+		return err
+	}
+	if err := seqNoFile.Sync(); err != nil {
+		return err
+	}
+	if err := seqNoFile.Close(); err != nil {
+		return err
+	}
 	// 关闭当前活跃文件
 	if err := db.ActiveFile.Close(); err != nil {
 		return nil
@@ -317,11 +407,20 @@ func (db *DB) appendLogRecord(logRecord *data.LogRecord) (*data.LogRecordPos, er
 	if err := db.ActiveFile.Write(encRecord); err != nil {
 		return nil, err
 	}
-
+	// 记录写入的字节数
+	db.BytesWrite += uint64(size)
+	var needSync = db.Options.SyncWrite
+	if !needSync && db.Options.BytesPerSync > 0 && db.BytesWrite >= db.Options.BytesPerSync {
+		needSync = true
+	}
 	//根据用户配置决定是否在写入数据后进行数据持久化
-	if db.Options.SyncWrite {
+	if needSync {
 		if err := db.ActiveFile.Sync(); err != nil {
 			return nil, err
+		}
+		//将写入字节数清空
+		if db.BytesWrite > 0 {
+			db.BytesWrite = 0
 		}
 	}
 
@@ -479,6 +578,7 @@ func (db *DB) loadIndexFromDataFile() error {
 					for _, txnRecord := range transactionLogRecord[seqNo] {
 						updateIndex(txnRecord.Record.Key, txnRecord.Record.Type, txnRecord.Pos)
 					}
+					// 暂存的事务数据完成相应的操作后，将暂存数据删除
 					delete(transactionLogRecord, seqNo)
 				} else {
 					logRecord.Key = realKey
@@ -515,5 +615,36 @@ func checkOptions(options conf.Options) error {
 	if options.DataFileSize <= 0 {
 		return errors.New("database data file size must be greater than 0")
 	}
+	return nil
+}
+
+/**
+ * loadSeqNoFile
+ * @Description: 加载存放全局事务序列号的文件，拿到全局事务序列号
+ * @receiver db
+ * @return error
+ */
+func (db *DB) loadSeqNoFile() error {
+	fileName := filepath.Join(db.Options.DirPath, data.SeqNoFileName)
+	if _, err := os.Stat(fileName); os.IsNotExist(err) {
+		return nil
+	}
+	seqNoFile, err := data.OpenSeqNoFile(db.Options.DirPath)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		_ = seqNoFile.Close()
+	}()
+	logRecord, _, err := seqNoFile.ReadLogRecord(0)
+	if err != nil {
+		return err
+	}
+	seqNo, err := strconv.ParseUint(string(logRecord.Value), 10, 64)
+	if err != nil {
+		return err
+	}
+	db.SeqNo = seqNo
+	db.SeqNoFileExists = true
 	return nil
 }

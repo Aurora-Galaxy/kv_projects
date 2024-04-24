@@ -5,6 +5,7 @@ import (
 	"kv_projects/conf"
 	"kv_projects/data"
 	"kv_projects/errs"
+	"kv_projects/index"
 	"sync"
 	"sync/atomic"
 )
@@ -25,6 +26,11 @@ type WriteBatch struct {
 }
 
 func (db *DB) NewWriteBatch(opt *conf.WriteBatchOptions) *WriteBatch {
+	// 如果索引类型为 B+ 树，并且没有保存最新事务序列号的文件，报警告
+	// 正常关闭数据库时，会保存最新的事务序列号
+	if db.Options.IndexType == index.BPTree && !db.SeqNoFileExists && !db.IsInitial {
+		panic("cannot use write batch, seq no file not exists")
+	}
 	return &WriteBatch{
 		options:       opt,
 		db:            db,
