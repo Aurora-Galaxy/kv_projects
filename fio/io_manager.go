@@ -3,6 +3,14 @@ package fio
 // 即用户具有读写权限，组用户和其它用户具有只读权限；
 const DataFilePerm = 0644
 
+type FileIOType = byte
+
+const (
+	StandardIoManager FileIOType = iota
+
+	MMapIoManager
+)
+
 /**
  * IOManager
  * @Description: 抽象 IO 管理接口，可以接入不同IO类型，目前仅支持标准文件IO
@@ -57,6 +65,13 @@ type IOManager interface {
  * @return IOManager
  * @return error
  */
-func NewIOManager(fileName string) (IOManager, error) {
-	return NewFileIOManager(fileName)
+func NewIOManager(fileName string, ioType FileIOType) (IOManager, error) {
+	switch ioType {
+	case StandardIoManager:
+		return NewFileIOManager(fileName)
+	case MMapIoManager:
+		return NewMMapIOManager(fileName)
+	default:
+		panic("unsupported io type")
+	}
 }

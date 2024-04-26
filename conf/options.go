@@ -22,6 +22,9 @@ type Options struct {
 
 	// 索引类型
 	IndexType index.IndexType
+
+	// 指定启动时是否使用MMap进行加载
+	MMapAtStartUp bool
 }
 
 // 用户初始化迭代器时，传入的配置
@@ -40,11 +43,12 @@ type WriteBatchOptions struct {
 }
 
 var DefaultOptions = Options{
-	DirPath:      os.TempDir(),
-	DataFileSize: 256 * 1024 * 1024, // 256MB
-	BytesPerSync: 0,
-	SyncWrite:    false,
-	IndexType:    index.Btree,
+	DirPath:       os.TempDir(),
+	DataFileSize:  256 * 1024 * 1024, // 256MB
+	BytesPerSync:  0,
+	SyncWrite:     false,
+	IndexType:     index.Btree,
+	MMapAtStartUp: true,
 }
 
 // 用户迭代器默认配置

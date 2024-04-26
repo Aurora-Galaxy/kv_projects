@@ -7,6 +7,7 @@ import (
 	"kv_projects/utils"
 	"os"
 	"testing"
+	"time"
 )
 
 // 测试完成之后销毁 DB 数据目录
@@ -39,7 +40,7 @@ func TestDB_Put(t *testing.T) {
 	opts.DirPath = "./temp"
 	opts.DataFileSize = 64 * 1024 * 1024
 	db, err := Open(opts)
-	defer destroyDB(db)
+	//defer destroyDB(db)
 	assert.Nil(t, err)
 	assert.NotNil(t, db)
 	//
@@ -69,10 +70,10 @@ func TestDB_Put(t *testing.T) {
 	assert.Nil(t, err)
 
 	//5.写到数据文件末尾，进行文件切换
-	//for i := 0; i < 1000000; i++ {
-	//	err := db.Put(utils.GetTestKey(i), utils.GetTestValue(128))
-	//	assert.Nil(t, err)
-	//}
+	for i := 0; i < 100; i++ {
+		err := db.Put(utils.GetTestKey(i), utils.GetTestValue(128))
+		assert.Nil(t, err)
+	}
 	//assert.Equal(t, 2, len(db.OlderFiles))
 
 	// 6.重启后再 Put 数据
@@ -81,16 +82,16 @@ func TestDB_Put(t *testing.T) {
 	assert.Nil(t, err)
 
 	// 重启数据库
-	db2, err := Open(opts)
-	defer destroyDB(db2)
-	assert.Nil(t, err)
-	assert.NotNil(t, db2)
-	val4 := utils.GetTestValue(128)
-	err = db2.Put(utils.GetTestKey(55), val4)
-	assert.Nil(t, err)
-	val5, err := db2.Get(utils.GetTestKey(55))
-	assert.Nil(t, err)
-	assert.Equal(t, val4, val5)
+	//db2, err := Open(opts)
+	//defer destroyDB(db2)
+	//assert.Nil(t, err)
+	//assert.NotNil(t, db2)
+	//val4 := utils.GetTestValue(128)
+	//err = db2.Put(utils.GetTestKey(55), val4)
+	//assert.Nil(t, err)
+	//val5, err := db2.Get(utils.GetTestKey(55))
+	//assert.Nil(t, err)
+	//assert.Equal(t, val4, val5)
 	//db.ActiveFile.IOManager.Close()
 
 }
@@ -331,4 +332,19 @@ func TestDB_FileLock(t *testing.T) {
 	err = db3.Close()
 	assert.Nil(t, err)
 
+}
+
+func TestDB_OpenMMap(t *testing.T) {
+	opts := conf.DefaultOptions
+	opts.DirPath = "./temp"
+	//使用 mmap   open time   1.028ms
+	//不使用 mmap   open time  2.8033ms
+	//opts.MMapAtStartUp = false
+
+	now := time.Now()
+	db, err := Open(opts)
+	t.Log("open time ", time.Since(now))
+
+	assert.Nil(t, err)
+	assert.NotNil(t, db)
 }

@@ -2,22 +2,23 @@ package data
 
 import (
 	"github.com/stretchr/testify/assert"
+	"kv_projects/fio"
 	"testing"
 )
 
 func TestOpenDataFile(t *testing.T) {
-	openDataFile, err := OpenDataFile("./temp", 0)
+	openDataFile, err := OpenDataFile("./temp", 0, fio.StandardIoManager)
 	assert.Nil(t, err)
 	assert.NotNil(t, openDataFile)
 
-	openDataFile1, err := OpenDataFile("./temp", 999)
+	openDataFile1, err := OpenDataFile("./temp", 999, fio.StandardIoManager)
 	assert.Nil(t, err)
 	assert.NotNil(t, openDataFile1)
 
 }
 
 func TestDataFile_Write(t *testing.T) {
-	openDataFile, err := OpenDataFile("./temp", 0)
+	openDataFile, err := OpenDataFile("./temp", 0, fio.StandardIoManager)
 	assert.Nil(t, err)
 	assert.NotNil(t, openDataFile)
 
@@ -33,7 +34,7 @@ func TestDataFile_Write(t *testing.T) {
 }
 
 func TestDataFile_Close(t *testing.T) {
-	openDataFile, err := OpenDataFile("./temp", 0)
+	openDataFile, err := OpenDataFile("./temp", 0, fio.StandardIoManager)
 	assert.Nil(t, err)
 	assert.NotNil(t, openDataFile)
 
@@ -45,7 +46,7 @@ func TestDataFile_Close(t *testing.T) {
 }
 
 func TestDataFile_Sync(t *testing.T) {
-	openDataFile, err := OpenDataFile("./temp", 0)
+	openDataFile, err := OpenDataFile("./temp", 0, fio.StandardIoManager)
 	assert.Nil(t, err)
 	assert.NotNil(t, openDataFile)
 
@@ -57,7 +58,7 @@ func TestDataFile_Sync(t *testing.T) {
 }
 
 func TestDataFile_ReadLogRecord(t *testing.T) {
-	dataFile, err := OpenDataFile("./temp", 222)
+	dataFile, err := OpenDataFile("./temp", 222, fio.StandardIoManager)
 	assert.Nil(t, err)
 	assert.NotNil(t, dataFile)
 

@@ -8,6 +8,7 @@ import (
 	"kv_projects/conf"
 	"kv_projects/data"
 	"kv_projects/errs"
+	"kv_projects/fio"
 	"kv_projects/index"
 	"os"
 	"path/filepath"
@@ -109,6 +110,13 @@ func Open(options conf.Options) (*DB, error) {
 		//构建内存索引
 		if err := db.loadIndexFromDataFile(); err != nil {
 			return nil, err
+		}
+
+		// 在db实例启动完成后，将ioManager重置为普通的Io
+		if db.Options.MMapAtStartUp {
+			if err := db.resetIoType(); err != nil {
+				return nil, err
+			}
 		}
 	}
 	// B+ 树的索引保存在磁盘上，不需要加载到内存
@@ -418,7 +426,7 @@ func (db *DB) appendLogRecord(logRecord *data.LogRecord) (*data.LogRecordPos, er
 		if err := db.ActiveFile.Sync(); err != nil {
 			return nil, err
 		}
-		//将写入字节数清空
+		//持久化后，将写入字节数清空
 		if db.BytesWrite > 0 {
 			db.BytesWrite = 0
 		}
@@ -445,7 +453,7 @@ func (db *DB) setActivateDataFile() error {
 		initialFileId = db.ActiveFile.FileId + 1
 	}
 	// 打开新的数据文件
-	dataFile, err := data.OpenDataFile(db.Options.DirPath, initialFileId)
+	dataFile, err := data.OpenDataFile(db.Options.DirPath, initialFileId, fio.StandardIoManager)
 	if err != nil {
 		return err
 	}
@@ -480,7 +488,11 @@ func (db *DB) loadDataFile() error {
 	db.FileIds = fileIds
 	// 遍历每个文件id,打开该文件
 	for i, fid := range fileIds {
-		dataFile, err := data.OpenDataFile(db.Options.DirPath, uint32(fid))
+		ioType := fio.StandardIoManager
+		if db.Options.MMapAtStartUp {
+			ioType = fio.MMapIoManager
+		}
+		dataFile, err := data.OpenDataFile(db.Options.DirPath, uint32(fid), ioType)
 		if err != nil {
 			return err
 		}
@@ -646,5 +658,26 @@ func (db *DB) loadSeqNoFile() error {
 	}
 	db.SeqNo = seqNo
 	db.SeqNoFileExists = true
+	return nil
+}
+
+/**
+ * resetIoType
+ * @Description:重置文件的IO类型为普通的类型
+ * @receiver db
+ * @return error
+ */
+func (db *DB) resetIoType() error {
+	if db.ActiveFile == nil {
+		return nil
+	}
+	if err := db.ActiveFile.SetIOManager(db.Options.DirPath, fio.StandardIoManager); err != nil {
+		return err
+	}
+	for _, oldDataFile := range db.OlderFiles {
+		if err := oldDataFile.SetIOManager(db.Options.DirPath, fio.StandardIoManager); err != nil {
+			return err
+		}
+	}
 	return nil
 }
