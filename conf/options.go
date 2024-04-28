@@ -25,6 +25,9 @@ type Options struct {
 
 	// 指定启动时是否使用MMap进行加载
 	MMapAtStartUp bool
+
+	// 进行 merge 的阈值
+	DataFileMergeRatio float32
 }
 
 // 用户初始化迭代器时，传入的配置
@@ -43,12 +46,13 @@ type WriteBatchOptions struct {
 }
 
 var DefaultOptions = Options{
-	DirPath:       os.TempDir(),
-	DataFileSize:  256 * 1024 * 1024, // 256MB
-	BytesPerSync:  0,
-	SyncWrite:     false,
-	IndexType:     index.Btree,
-	MMapAtStartUp: true,
+	DirPath:            os.TempDir(),
+	DataFileSize:       256 * 1024 * 1024, // 256MB
+	BytesPerSync:       0,
+	SyncWrite:          false,
+	IndexType:          index.Btree,
+	MMapAtStartUp:      true,
+	DataFileMergeRatio: 0.5, // 当无效数据占据总数据的一般时开始merge
 }
 
 // 用户迭代器默认配置

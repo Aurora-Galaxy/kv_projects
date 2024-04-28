@@ -4,6 +4,7 @@ import (
 	"io"
 	"kv_projects/data"
 	"kv_projects/errs"
+	"kv_projects/utils"
 	"os"
 	"path"
 	"path/filepath"
@@ -27,6 +28,30 @@ func (db *DB) Merge() error {
 		db.Mutex.Unlock()
 		return errs.ErrMergeIsProgress
 	}
+
+	// 获取当前 db 实例所在文件夹的大小
+	totalSize, err := utils.DirSize(db.Options.DirPath)
+	if err != nil {
+		db.Mutex.Unlock()
+		return err
+	}
+	// 判断是否到达设置的 merge 阈值
+	if float32(db.ReclaimSize)/float32(totalSize) < db.Options.DataFileMergeRatio {
+		db.Mutex.Unlock()
+		return errs.ErrMergeRatioUnreached
+	}
+
+	// 判断磁盘剩余空间是否可以容纳 merge 之后的数据
+	availableDiskSize, err := utils.AvailableDiskSize()
+	if err != nil {
+		db.Mutex.Unlock()
+		return err
+	}
+	if totalSize-uint64(db.ReclaimSize) >= availableDiskSize {
+		db.Mutex.Unlock()
+		return errs.ErrNotEnoughSpaceForMerge
+	}
+
 	db.IsMerging = true
 	defer func() {
 		db.IsMerging = false
@@ -37,7 +62,7 @@ func (db *DB) Merge() error {
 		2. 对之前的全部文件执行merge操作
 	*/
 	// 持久化当前活跃文件
-	err := db.ActiveFile.Sync()
+	err = db.ActiveFile.Sync()
 	if err != nil {
 		db.Mutex.Unlock()
 		return err
@@ -89,12 +114,18 @@ func (db *DB) Merge() error {
 	if err != nil {
 		return err
 	}
+	defer func() {
+		_ = mergeDB.Close()
+	}()
 
 	// 打开 hint 文件存储索引
 	hintFile, err := data.OpenHintFile(mergePath)
 	if err != nil {
 		return err
 	}
+	defer func() {
+		_ = hintFile.Close()
+	}()
 
 	// 遍历处理每一个文件
 	for _, file := range mergeFiles {
@@ -112,7 +143,7 @@ func (db *DB) Merge() error {
 			// 拿到key对应的内存索引信息
 			logRecordPos := db.Index.Get(realKey)
 			//判断数据是否需要重写
-			if logRecordPos != nil && logRecordPos.Fid == file.FileId && logRecordPos.Offset == file.WriteOffset {
+			if logRecordPos != nil && logRecordPos.Fid == file.FileId && logRecordPos.Offset == offset {
 				//	merge时确定该数据有效，不在需要加入事务序列号
 				logRecord.Key = logRecordKeyWithSeq(realKey, nonTransactionSeqNo)
 				newLogRecordPos, err := mergeDB.appendLogRecordWithLock(logRecord)
@@ -141,6 +172,9 @@ func (db *DB) Merge() error {
 	if err != nil {
 		return err
 	}
+	//defer func() {
+	//	_ = mergeFinishedFile.Close()
+	//}()
 
 	mergeFinRecord := &data.LogRecord{
 		Key:   []byte(MergeFinishedKey),
@@ -149,6 +183,12 @@ func (db *DB) Merge() error {
 	encoderLogRecord, _ := data.EncoderLogRecord(mergeFinRecord)
 	err = mergeFinishedFile.Write(encoderLogRecord)
 	if err != nil {
+		return err
+	}
+	if err := mergeFinishedFile.Sync(); err != nil {
+		return err
+	}
+	if err := mergeFinishedFile.Close(); err != nil {
 		return err
 	}
 	return nil
@@ -195,6 +235,9 @@ func (db *DB) loadMergeFiles() error {
 		if entry.Name() == data.SeqNoFileName {
 			continue
 		}
+		if entry.Name() == FileLockName {
+			continue
+		}
 		mergeFileNames = append(mergeFileNames, entry.Name())
 	}
 
@@ -221,14 +264,14 @@ func (db *DB) loadMergeFiles() error {
 		}
 	}
 
-	// 将 merge 之后的文件移动过来
+	// 将 merge 之后的文件移动过来,移动完成后源文件路径整体会被删除
 	for _, fileName := range mergeFileNames {
 		srcPath := filepath.Join(mergePath, fileName)
 		destPath := filepath.Join(db.Options.DirPath, fileName)
-		// 将 oldpath 重命名（移动）为 newpath
+		// 将 srcpath 重命名（移动）为 destpath
 		err := os.Rename(srcPath, destPath)
 		if err != nil {
-			return nil
+			return err
 		}
 	}
 	return nil
@@ -241,6 +284,9 @@ func (db *DB) getNoMergeFileId(dirPath string) (uint32, error) {
 	if err != nil {
 		return 0, err
 	}
+	defer func() {
+		_ = mergeFinishedFile.Close()
+	}()
 	record, _, err := mergeFinishedFile.ReadLogRecord(0)
 	if err != nil {
 		return 0, err
@@ -262,11 +308,14 @@ func (db *DB) loadIndexFromHintFile() error {
 		return nil
 	}
 	// 打开 hint 索引文件
-	hintFile, err := data.OpenHintFile(hintFileName)
+	hintFile, err := data.OpenHintFile(db.Options.DirPath)
 	if err != nil {
 		return err
 	}
 
+	defer func() {
+		_ = hintFile.Close()
+	}()
 	// hint 文件中写入的是 logRecord，可以直接读取，key是真实的不加编码的 key
 	var offset int64 = 0
 	for {

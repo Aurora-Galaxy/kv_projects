@@ -34,15 +34,18 @@ func NewBtree() *BTree {
  * @param pos
  * @return bool
  */
-func (bt *BTree) Put(key []byte, pos *data.LogRecordPos) bool {
+func (bt *BTree) Put(key []byte, pos *data.LogRecordPos) *data.LogRecordPos {
 	it := &ItemSelf{
 		key: key,
 		pos: pos,
 	}
 	bt.lock.Lock()
-	bt.tree.ReplaceOrInsert(it)
+	oldPos := bt.tree.ReplaceOrInsert(it)
 	bt.lock.Unlock()
-	return true
+	if oldPos == nil {
+		return nil
+	}
+	return oldPos.(*ItemSelf).pos
 }
 
 /**
@@ -70,7 +73,7 @@ func (bt *BTree) Get(key []byte) *data.LogRecordPos {
  * @param key
  * @return bool
  */
-func (bt *BTree) Delete(key []byte) bool {
+func (bt *BTree) Delete(key []byte) (*data.LogRecordPos, bool) {
 	it := &ItemSelf{
 		key: key,
 	}
@@ -79,9 +82,9 @@ func (bt *BTree) Delete(key []byte) bool {
 	bt.lock.Unlock()
 	// delete会返回删除键对应的内容，如果为空代表删除失败
 	if oldItem == nil {
-		return false
+		return nil, false
 	} else {
-		return true
+		return oldItem.(*ItemSelf).pos, true
 	}
 }
 

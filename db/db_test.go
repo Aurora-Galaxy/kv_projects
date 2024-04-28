@@ -6,6 +6,7 @@ import (
 	"kv_projects/errs"
 	"kv_projects/utils"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 )
@@ -82,16 +83,16 @@ func TestDB_Put(t *testing.T) {
 	assert.Nil(t, err)
 
 	// 重启数据库
-	//db2, err := Open(opts)
-	//defer destroyDB(db2)
-	//assert.Nil(t, err)
-	//assert.NotNil(t, db2)
-	//val4 := utils.GetTestValue(128)
-	//err = db2.Put(utils.GetTestKey(55), val4)
-	//assert.Nil(t, err)
-	//val5, err := db2.Get(utils.GetTestKey(55))
-	//assert.Nil(t, err)
-	//assert.Equal(t, val4, val5)
+	db2, err := Open(opts)
+	defer destroyDB(db2)
+	assert.Nil(t, err)
+	assert.NotNil(t, db2)
+	val4 := utils.GetTestValue(128)
+	err = db2.Put(utils.GetTestKey(55), val4)
+	assert.Nil(t, err)
+	val5, err := db2.Get(utils.GetTestKey(55))
+	assert.Nil(t, err)
+	assert.Equal(t, val4, val5)
 	//db.ActiveFile.IOManager.Close()
 
 }
@@ -347,4 +348,74 @@ func TestDB_OpenMMap(t *testing.T) {
 
 	assert.Nil(t, err)
 	assert.NotNil(t, db)
+}
+
+func TestDB_Stat(t *testing.T) {
+	opts := conf.DefaultOptions
+	//dir, _ := os.MkdirTemp("", "bitcask-go-delete")
+	opts.DirPath = "./temp"
+	db, err := Open(opts)
+	defer destroyDB(db)
+	assert.Nil(t, err)
+	assert.NotNil(t, db)
+
+	for i := 0; i < 1000; i++ {
+		err := db.Put(utils.GetTestKey(i), utils.GetTestValue(128))
+		assert.Nil(t, err)
+	}
+
+	for i := 0; i < 1000; i++ {
+		err := db.Delete(utils.GetTestKey(i))
+		assert.Nil(t, err)
+	}
+
+	for i := 1000; i < 2000; i++ {
+		err := db.Put(utils.GetTestKey(i), utils.GetTestValue(128))
+		assert.Nil(t, err)
+	}
+
+	stat := db.Stat()
+	t.Log(stat)
+}
+
+func TestDB_BackUp(t *testing.T) {
+	opts := conf.DefaultOptions
+	dir := filepath.Join("./temp", "bitcask-go-backup")
+	opts.DataFileSize = 32 * 1024 * 1024
+	opts.DirPath = dir
+	db, err := Open(opts)
+	defer destroyDB(db)
+	assert.Nil(t, err)
+	assert.NotNil(t, db)
+
+	for i := 0; i < 50000; i++ {
+		err := db.Put(utils.GetTestKey(i), utils.GetTestValue(1024))
+		assert.Nil(t, err)
+	}
+
+	err = db.BackUp(filepath.Join("./temp", "bitcask-go-test"))
+	assert.Nil(t, err)
+
+	defer func() {
+		_ = db.Close()
+	}()
+
+	opts2 := conf.DefaultOptions
+	dir2 := filepath.Join("./temp", "bitcask-go-test")
+	opts.DataFileSize = 32 * 1024 * 1024
+	opts2.DirPath = dir2
+	db2, err := Open(opts2)
+
+	for i := 0; i < 50000; i++ {
+		val, err := db.Get(utils.GetTestKey(i))
+		assert.Nil(t, err)
+		assert.NotNil(t, val)
+	}
+	defer destroyDB(db2)
+	assert.Nil(t, err)
+	assert.NotNil(t, db2)
+
+	defer func() {
+		_ = db2.Close()
+	}()
 }

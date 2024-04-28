@@ -135,12 +135,17 @@ func (wt *WriteBatch) Commit() error {
 	// 更新内存索引
 	for _, record := range wt.pendingWrites {
 		pos := positions[string(record.Key)]
+		var oldValue *data.LogRecordPos
 		if record.Type == data.LogRecordNormal {
-			wt.db.Index.Put(record.Key, pos)
+			oldValue = wt.db.Index.Put(record.Key, pos)
 		}
 		if record.Type == data.LogRecordDeleted {
-			wt.db.Index.Delete(record.Key)
+			oldValue, _ = wt.db.Index.Delete(record.Key)
 		}
+		if oldValue != nil {
+			wt.db.ReclaimSize += int64(oldValue.Size)
+		}
+
 	}
 
 	// 清空暂存的数据
