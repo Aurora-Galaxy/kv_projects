@@ -50,7 +50,7 @@ type Stat struct {
 	KeyNum      uint   // key的总数量
 	DataFileNum uint   // 文件总数
 	ReclaimSize int64  // 可以被merge回收的字节大小
-	DiskSize    uint64 // 数据目录所占磁盘大小
+	DiskSize    uint64 // 数据目录所占磁盘大小,以字节为单位
 }
 
 func Open(options conf.Options) (*DB, error) {
