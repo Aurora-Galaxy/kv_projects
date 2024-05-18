@@ -15,4 +15,7 @@ var (
 	ErrDatabaseIsUsing        = errors.New("the database directory is used by another process")
 	ErrMergeRatioUnreached    = errors.New("the merge ratio do not reach option ratio")
 	ErrNotEnoughSpaceForMerge = errors.New("no enough disk space for merge")
+	ErrWrongOperationType     = errors.New("WRONGTYPE Operation against a key holding the wrong kind of value")
+	ErrDataExpired            = errors.New("data is expired")
+	ErrValueIsNull            = errors.New("Value is NULL")
 )
