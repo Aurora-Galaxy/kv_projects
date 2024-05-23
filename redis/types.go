@@ -39,6 +39,11 @@ func NewRedisDataStructure(opt conf.Options) (*RedisDataStructure, error) {
 	return &RedisDataStructure{db: Db}, nil
 }
 
+// 关闭数据库连接
+func (rds *RedisDataStructure) Close() error {
+	return rds.db.Close()
+}
+
 // ============================String 数据结构================================
 // String 类型
 //
@@ -46,7 +51,7 @@ func NewRedisDataStructure(opt conf.Options) (*RedisDataStructure, error) {
 //
 // key =>  |   type   |  expire    |       payload      |
 //
-//	| (1byte)  | (Ebyte)    |       (Nbyte)      |
+//	       | (1byte)  | (Ebyte)    |       (Nbyte)      |
 //	+----------+------------+--------------------+
 func (rds *RedisDataStructure) Set(key, value []byte, ttl time.Duration) error {
 	if value == nil {
